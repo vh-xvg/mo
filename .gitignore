@@ -8,6 +8,12 @@ __pycache__/
 *.tmp
 *~
 
+dl
+make_jpg
+mo
+mo_loop.log
+runtime/*.log
+
 runtime/logs/
 logs/
 
