@@ -1,0 +1,3 @@
+Synthetic influence coefficient: 0.004500 IPS/g @ 22.000 deg
+Trial weight: 20.000 g @ 90.000 deg
+Ideal correction: 40.000 g @ 270.000 deg

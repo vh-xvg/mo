@@ -1,0 +1,23 @@
+{
+  "baseline_ips": 0.17993691517460939,
+  "baseline_phase_deg": 67.97648934730472,
+  "trial_ips": 0.27013826332993174,
+  "trial_phase_deg": 67.93215548822053,
+  "trial_weight_g": 20.0,
+  "trial_angle_deg": 90.0,
+  "influence_ips_per_g": 0.004510075473776052,
+  "influence_phase_deg_per_g": 337.8437168328206,
+  "correction_weight_g": 39.89665277684534,
+  "correction_angle_deg": 270.13277251448415,
+  "residual_estimate_ips": 0.0,
+  "split_weights": [
+    {
+      "weight_g": 39.73641213620596,
+      "angle_deg": 270.0
+    },
+    {
+      "weight_g": 0.18490626055743134,
+      "angle_deg": 300.0
+    }
+  ]
+}

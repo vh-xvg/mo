@@ -1,0 +1,183 @@
+Making a new Pi system.
+
+See also https://www.raspberrypi.com/documentation/computers/raspberry-pi-5.html
+
+Load Raspberry Pi OS (64 bit)
+
+Set up networks
+
+Use raspi-config to:
+- Set hostname
+- Enable i2c
+- Disable splash
+
+Add to the end of /boot/config.txt:
+
+    # AP: LCD interface
+    dtoverlay=disable-bt
+    dtoverlay=uart3
+    dtoverlay=uart5
+
+    # AP: Lidar interface
+    dtoverlay=i2c-gpio,bus=6,i2c_gpio_delay_us=1,i2c_gpio_sda=22,i2c_gpio_scl=23
+
+    disable_splash=1
+    boot_delay=0
+
+Add to /etc/modules:
+
+    i2c-dev
+    snd_bcm2835          (Raspberry Pi 4 only)
+    ipv6
+
+Create /etc/udev/rules.d/50-efi.rules which contains:
+    # EFI power board
+
+    SUBSYSTEM=="tty", ATTRS{idVendor}=="0483", ATTRS{idProduct}=="5740", \
+        MODE="666", ENV{ID_MM_DEVICE_IGNORE}="1", \
+        SYMLINK+="ttyUSB-efi"
+
+Create /etc/udev/rules.d/55-ft2232.rules which contains:
+    SUBSYSTEM!="usb|usb_device", GOTO="ft2232_rules_end"
+    ACTION!="add", GOTO="ft2232_rules_end"
+
+    ATTRS{idVendor}=="0403", ATTRS{idProduct}=="cff8", MODE="0666", GROUP="tty"
+    ATTRS{idVendor}=="0403", ATTRS{idProduct}=="6001", MODE="0666", GROUP="tty"
+    ATTRS{idVendor}=="0403", ATTRS{idProduct}=="6015", MODE="0666", GROUP="tty"
+    ATTRS{idVendor}=="1b3d", ATTRS{idProduct}=="0200", MODE="0666", GROUP="tty"
+
+    LABEL="ft2232_rules_end"
+
+Create /etc/udev/rules.d/51-mo.rules which contains:
+  # Matrix Orbital board
+  SUBSYSTEM=="usb", ATTRS{idVendor}=="1b3d", ATTRS{idProduct}=="0200", GROUP="plugdev", MODE="0666" 
+
+NOTE: On Fedora hosts you can reload the udev rules with:
+  sudo oudevadm control --reload-rules
+  sudo udevadm trigger
+
+Install stuff:
+    sudo apt install screen libconfig-dev espeak libftdi1-dev shotwell vim
+    sudo apt install gpiod libgpiod-dev libgpiod-doc
+    sudo apt install build-essential pkg-config libfreetype6-dev libjpeg-dev xxd
+
+Install ftdi nonsense:
+    Get the file libftd2xx-arm-v8-1.4.27.tgz into work/rv10/mo/eve/ftdi
+    zcat libftd2xx-arm-v8-1.4.27.tgz | tar xf -
+    cd release
+    Follow the instructions in ReadMe.txt
+
+
+# DEPRECATED
+# Install wiringPi:
+#     Get latest release from https://github.com/WiringPi/WiringPi
+#     Install it per the instructions
+
+Install lgpio
+    cd work/rv10/mo
+    unzip lg.zip
+    cd lg
+    sudo make install
+
+Do the bzr stuff
+    bzr whoami port@sandgate.com
+    mkdir work
+    cd work
+    bzr checkout bzr+ssh://repo.sandgate.com/work/repo/rv10/trunk rv10
+
+Build mo
+    make
+
+Add to /etc/rc.local:
+
+    _mouser="port"
+
+    _moplace="/home/$_mouser/work/rv10/mo"
+    _logfile="$_moplace/mo.log"
+
+    rm -f $_moplace/mo_old.log
+    if [ -e  $_logfile ]; then
+      mv $_logfile $_moplace/mo_old.log
+    fi
+
+    runuser -l $_mouser -c 'screen -dmS mo -L -Logfile '$_logfile' bash -c "cd '$_moplace' && ./mo_loop.sh"'
+
+Add to .bashrc as necessary
+
+Enable battery trickle charge
+    Add "dtparam=rtc_bbat_vchg=3000000" to /boot/config.txt
+
+Add overlay for SPI0 and AD5592R ADC/DAC (hat2)
+    dtoverlay=spi0-1cs,cs0_pin=8
+
+The ModemManager probes every serial device to see if it is a modem. This can cause problems for the TFT display.
+    sudo systemctl stop ModemManager
+    sudo systemctl disable ModemManager
+
+
+/***********************************************************
+Install iio packages 'n things (when using v2 hat)
+    Ref: https://analogdevicesinc.github.io/libiio/v0.25/libiio/index.html
+
+    sudo apt-get install libiio-utils
+
+Building a custom kernel
+  sudo apt-get install make build-essential libncurses-dev bison flex libssl-dev libelf-dev
+
+  mkdir kernel; cd kernel
+  git clone --depth=1 --branch rpi-6.5.y https://github.com/raspberrypi/linux
+  cd linux
+  KERNEL=kernel_2712
+  make bcm2712_defconfig
+  # Edit .config to make CONFIG_LOCALVERSION unique/independent:wq
+  make menuconfig
+  make -j4 Image.gz modules dtbs
+  sudo make modules_install
+  sudo cp arch/arm64/boot/dts/broadcom/*.dtb /boot/firmware/
+  sudo cp arch/arm64/boot/dts/overlays/*.dtb* /boot/firmware/overlays/
+  sudo cp arch/arm64/boot/dts/overlays/README /boot/firmware/overlays/
+  sudo cp arch/arm64/boot/Image.gz /boot/firmware/$KERNEL.img
+
+Except, since I couldn't get the ad5592 overlay to work, the above iio and kernel stuff is POINTLESS.
+
+The ad5592 is handled directly in the mo program for now, works fine.
+***********************************************************/
+
+
+Enable watchdog
+  See here: https://diode.io/blog/running-forever-with-the-raspberry-pi-hardware-watchdog
+  sudo apt-get install watchdog
+  Edit /etc/watchdog.conf, set device to "dev/watchdog", timeout to 15, max-load-1 to 24
+  sudo systemctl enable watchdog
+  sudo systemctl start watchdog
+  sudo systemctl status watchdog
+
+If tailscale is desired for remote access:
+
+  curl -fsSL https://tailscale.com/install.sh | sh
+  sudo tailscale up
+  sudo systemctl enable tailscaled
+  sudo systemctl start tailscaled
+  sudo tailscale up --ssh
+
+For Python plotting of EFI log data:
+
+  sudo apt update
+  sudo apt install python3 python3-venv python3-pip chromium-browser
+  python3 -m venv .venv
+  source .venv/bin/activate
+  pip install numpy plotly kaleido reportlab python-docx
+  deactivate
+
+
+------------------------------------------
+If after using rpi-clone the SD card won't boot, stick the card in another box, mount
+the two filesystems, and then:
+
+Get PARTUUID by doing:
+
+    sudo blkid /dev/sdb2
+
+Fix it in /boot/cmdline.txt, and /etc/fstab if necessary
+
+Then the card should boot

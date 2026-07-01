@@ -1,0 +1,5 @@
+    # EFI power board
+
+    SUBSYSTEM=="tty", ATTRS{idVendor}=="0483", ATTRS{idProduct}=="5740", \
+        MODE="666", ENV{ID_MM_DEVICE_IGNORE}="1", \
+        SYMLINK+="ttyUSB-efi"
