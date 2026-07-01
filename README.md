@@ -21,7 +21,6 @@ lidar, sound, and utility interfaces.
  runtime/            Default local logs and screenshots directory
  udev/               udev rules for target systems
  docs/               Notes and vendor/reference documents
- external/           Separately licensed external code
  vib_analysis/       Python vibration-analysis tools
 ```
 
@@ -77,6 +76,8 @@ The main program is intended to run from the repository root.  The application l
 * `runtime/screenshots`                             (Screenshots written here)
 
 Raspberry Pi setup notes are included in `docs/README.pi`.
+
+Vibration sensor code is still under development.
 
 ## Licensing
 
