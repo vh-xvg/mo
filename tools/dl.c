@@ -312,16 +312,18 @@ int main()
         }
       }
 
-    struct tspsr *ts, *tsbase;
+    struct tspsr *ts;
 
     int j, k, nb;
-    int nalloc;
+    int nalloc = 16;
     int nrec;
 
-    if (i == 0) {
-      // Initial allocation
-      nalloc = 16;
-      tsbase = (struct tspsr *) calloc(nalloc, sizeof(struct tspsr));
+    // Initial allocation
+    struct tspsr *tsbase = (struct tspsr *) calloc(nalloc, sizeof(struct tspsr));
+
+    if (!tsbase) {
+      perror("calloc");
+      exit(1);
       }
 
     // Read in all the start records
@@ -392,6 +394,7 @@ int main()
       fprintf(f, "pause 9999 \"Cntrl-C to exit\"\n");
 
       fclose(f);
+      free(tsbase);
     }
 
   return(0);
