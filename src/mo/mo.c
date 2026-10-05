@@ -5735,10 +5735,12 @@ static void eve_handler() {
               pthread_mutex_lock(&flaps_lock);
               flaps_mode_airspeed = 1;
               flaps_put_action = FLAP_MODE_AIRSPEED_ON;
+              dbprintf("Flaps airspeed dependency mode is ON\n");
             } else {
               pthread_mutex_lock(&flaps_lock);
               flaps_mode_airspeed = 0;
               flaps_put_action = FLAP_MODE_AIRSPEED_OFF;
+              dbprintf("Flaps airspeed dependency mode is OFF\n");
               }
             ACTIVATE_FLAPS_THREAD(flaps_put_action);
             }
@@ -5752,9 +5754,11 @@ static void eve_handler() {
               pthread_mutex_lock(&flaps_lock);
               flaps_mode_continuous = 1;
               flaps_put_action = FLAP_MODE_CONTINUOUS;
+              dbprintf("Switching flap mode to continuous\n");
             } else {
               pthread_mutex_lock(&flaps_lock);
               flaps_mode_continuous = 0;
+              dbprintf("Switching flap mode to incremental\n");
               flaps_put_action = 0x8000000;       // Force it to do something
               }
             ACTIVATE_FLAPS_THREAD(flaps_put_action);
@@ -6066,10 +6070,12 @@ static void eve_handler() {
             pthread_mutex_lock(&flaps_lock);
             flaps_mode_airspeed = 1;
             flaps_put_action = FLAP_MODE_AIRSPEED_ON;
+            dbprintf("Flaps airspeed dependency mode is ON\n");
           } else {
             pthread_mutex_lock(&flaps_lock);
             flaps_mode_airspeed = 0;
             flaps_put_action = FLAP_MODE_AIRSPEED_OFF;
+            dbprintf("Flaps airspeed dependency mode is OFF\n");
           }
           pthread_cond_signal(&flaps_req_cond);
           pthread_mutex_unlock(&flaps_lock);
@@ -6082,10 +6088,12 @@ static void eve_handler() {
             pthread_mutex_lock(&flaps_lock);
             flaps_mode_continuous = 1;
             flaps_put_action = FLAP_MODE_CONTINUOUS;
+            dbprintf("Switching flap mode to continuous\n");
           } else {
             pthread_mutex_lock(&flaps_lock);
             flaps_mode_continuous = 0;
             flaps_put_action = 0x8000000;       // Force it to do something
+            dbprintf("Switching flap mode to incremental\n");
           }
           pthread_cond_signal(&flaps_req_cond);
           pthread_mutex_unlock(&flaps_lock);
@@ -7228,11 +7236,52 @@ static void mo_request_shutdown(void)
   pthread_mutex_unlock(&log_lock);
 }
 
+// Dynamically finds the chip number labeled "rp1-gpio"
+// This changed during a recent Kernel upgrade, so could no longer be hard coded
+static int find_rp1_gpio_chip(void) {
+    char path[128];
+    char label[128];
+    FILE *fp;
+
+    // Scan up to 32 possible gpiochip devices
+    for (int i = 0; i < 32; i++) {
+        snprintf(path, sizeof(path), "/sys/class/gpio/gpiochip%d/label", i);
+
+        if (access(path, F_OK) == 0) {
+            fp = fopen(path, "r");
+            if (fp) {
+                if (fgets(label, sizeof(label), fp)) {
+                    // Strip newline if present
+                    label[strcspn(label, "\n")] = 0;
+
+                    // "rp1-gpio" is the Raspberry Pi 5 peripheral controller
+                    if (strcmp(label, "rp1-gpio") == 0) {
+                        fclose(fp);
+                        return i;
+                    }
+                }
+                fclose(fp);
+            }
+        }
+    }
+
+    // Hardcoded fallback list based on your system and known configurations
+    int fallbacks[] = {15, 4, 0};
+    for (int i = 0; i < 3; i++) {
+        snprintf(path, sizeof(path), "/dev/gpiochip%d", fallbacks[i]);
+        if (access(path, F_OK) == 0) {
+            return fallbacks[i];
+        }
+    }
+
+    return -1; // Not found
+}
 
 int main(int argc, char *argv[])
 {
   int sts;
   int opt;
+  int target_chip;                  // Target R-Pi gpio chip
 
   pthread_t t_thread;
   pthread_t a_thread;
@@ -7526,12 +7575,21 @@ int main(int argc, char *argv[])
 
 #ifdef ARM
   #ifdef USE_LGPIO
-    gpio_handle = lgGpiochipOpen(GPIOCHIP);
+    target_chip = find_rp1_gpio_chip();
+
+    if (target_chip < 0) {
+        fprintf(stderr, "Error: Could not identify the RP1 GPIO chip.\n");
+        return 1;
+    }
+
+    dbprintf("Dynamically selected gpiochip%d\n", target_chip);
+
+    gpio_handle = lgGpiochipOpen(target_chip);
     if (gpio_handle < 0) {
-      fprintf(stderr, "lpGpiochipOpen(4) failed\n");
+      fprintf(stderr, "lpGpiochipOpen() failed (%d)\n", target_chip);
       return -1;
       }
-    dbprintf("GPIOCHIP is %d, gpio_handle = 0x%x\n", GPIOCHIP, gpio_handle);
+    dbprintf("GPIO chip is %d, gpio_handle = 0x%x\n", target_chip, gpio_handle);
   #else
     if (wiringPiSetup() < 0) {
       fprintf(stderr, "wiringPiSetup() failed\n");

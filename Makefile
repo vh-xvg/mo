@@ -11,7 +11,6 @@ AR ?= ar
 SYS := $(shell $(CC) -dumpmachine)
 PIMODEL := $(shell test -r /proc/cpuinfo && grep Model /proc/cpuinfo | sed -e 's/^.*Raspberry Pi //' -e 's/ .*//' || echo 0)
 
-GPIOCHIP ?= 4
 ifeq ($(PIMODEL),5)
   USE_HAT2 ?= 1
   USE_IIO ?= 1
@@ -51,7 +50,7 @@ else ifneq (, $(findstring aarch64-linux-gnu,$(SYS)))
   COMMON_CFLAGS += -DARM -D__linux__ -DPIMODEL=$(PIMODEL)
   ifdef USE_lgpio
     LIBS += -llgpio
-    COMMON_CFLAGS += -DUSE_LGPIO=1 -DGPIOCHIP=$(GPIOCHIP)
+    COMMON_CFLAGS += -DUSE_LGPIO=1
     ifdef USE_IIO
       LIBS += -liio
     endif
