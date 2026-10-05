@@ -7237,44 +7237,44 @@ static void mo_request_shutdown(void)
 }
 
 // Dynamically finds the chip number labeled "rp1-gpio"
-// This changed during a recent Kernel upgrade, so could no longer be hard coded
+// The driver probe order on the PCIe bus in the latest R-Pi OS upgrades can
+// allow other drivers to hook into the kernel earlier during boot. Linux assigns
+// numbers sequentially, so the RP1 header can get pushed to an arbitrary number
+// back in the line, so we have to go find it rather than "hard code" the number.
+#include <sys/ioctl.h>
+#include <linux/gpio.h> // Standard Linux GPIO Character Device API
+
 static int find_rp1_gpio_chip(void) {
-    char path[128];
-    char label[128];
-    FILE *fp;
+  char dev_path[32];
+  struct gpiochip_info info;
+  int fd;
 
-    // Scan up to 32 possible gpiochip devices
-    for (int i = 0; i < 32; i++) {
-        snprintf(path, sizeof(path), "/sys/class/gpio/gpiochip%d/label", i);
-
-        if (access(path, F_OK) == 0) {
-            fp = fopen(path, "r");
-            if (fp) {
-                if (fgets(label, sizeof(label), fp)) {
-                    // Strip newline if present
-                    label[strcspn(label, "\n")] = 0;
-
-                    // "rp1-gpio" is the Raspberry Pi 5 peripheral controller
-                    if (strcmp(label, "rp1-gpio") == 0) {
-                        fclose(fp);
-                        return i;
-                    }
-                }
-                fclose(fp);
-            }
+  // Scan up to 32 possible character devices in /dev/
+  for (int i = 0; i < 32; i++) {
+    snprintf(dev_path, sizeof(dev_path), "/dev/gpiochip%d", i);
+    //dbprintf("find_rp1: Trying gpiochip%d...\n", i);
+        
+    // Open the character device read-only to query its info node
+    fd = open(dev_path, O_RDONLY);
+    if (fd >= 0) {
+      // Fetch the internal chip information natively via ioctl
+      if (ioctl(fd, GPIO_GET_CHIPINFO_IOCTL, &info) == 0) { //
+        // Raspberry Pi 5 exposes the main 40-pin header as "pinctrl-rp1" or "rp1-gpio"
+        if (strcmp(info.name, "pinctrl-rp1") == 0 || 
+            strcmp(info.label, "pinctrl-rp1") == 0 ||
+            strcmp(info.name, "rp1-gpio") == 0 || 
+            strcmp(info.label, "rp1-gpio") == 0) {
+                    
+          close(fd);
+	  dbprintf("find_rp1_gpio_chip: Found rp1-gpio as gpiochip%d\n", i);
+          return i;
+          }
         }
+      close(fd);
     }
-
-    // Hardcoded fallback list based on your system and known configurations
-    int fallbacks[] = {15, 4, 0};
-    for (int i = 0; i < 3; i++) {
-        snprintf(path, sizeof(path), "/dev/gpiochip%d", fallbacks[i]);
-        if (access(path, F_OK) == 0) {
-            return fallbacks[i];
-        }
-    }
-
-    return -1; // Not found
+  }
+    
+  return -1;
 }
 
 int main(int argc, char *argv[])
