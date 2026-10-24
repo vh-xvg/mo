@@ -2136,7 +2136,7 @@ void efi_fuelpump_start_response(struct efi_frame *f)
 
 static int log_fd[] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
 #ifdef ARM
-static char log_dev[128] = { "/media/port/XVG_Logs" };
+static char log_dev[128] = { "runtime/XVG_Logs" };
 #else
 static char log_dev[128] = { "/run/media/port/XVG_Logs" };        // Fedora, other
 #endif
